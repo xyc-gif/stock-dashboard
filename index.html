@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>量价信号 - 股票看盘仪表盘</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --card: #1a1d27;
+  --border: #2a2d37;
+  --text: #d1d4dc;
+  --text-dim: #787b86;
+  --green: #22c55e;
+  --red: #ef4444;
+  --blue: #3b82f6;
+  --yellow: #eab308;
+  --accent: #6366f1;
+  --radius: 10px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+/* Header */
+.header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.refresh-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.refresh-select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+/* Layout */
+.container { max-width: 1400px; margin: 0 auto; padding: 16px; }
+/* Search */
+.search-wrap {
+  position: relative;
+  margin-bottom: 16px;
+}
+.search-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--accent); }
+.search-input::placeholder { color: var(--text-dim); }
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 200;
+  display: none;
+}
+.search-dropdown.active { display: block; }
+.search-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.search-item:hover { background: #252836; }
+.search-item .code { color: var(--text-dim); font-size: 12px; }
+.search-item .name { font-weight: 500; }
+/* Watchlist */
+.watchlist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.watchlist-header h2 { font-size: 16px; font-weight: 600; }
+.watchlist-count { font-size: 12px; color: var(--text-dim); }
+/* Table */
+.table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 900px;
+}
+thead th {
+  background: var(--card);
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  white-space: nowrap;
+}
+tbody td {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody tr { transition: background 0.3s; }
+tbody tr:hover { background: var(--card); }
+tbody tr.flash-up { animation: flashGreen 0.8s ease-out; }
+tbody tr.flash-down { animation: flashRed 0.8s ease-out; }
+@keyframes flashGreen { 0%{background:rgba(34,197,94,0.2)} 100%{background:transparent} }
+@keyframes flashRed { 0%{background:rgba(239,68,68,0.2)} 100%{background:transparent} }
+.stock-name { font-weight: 600; }
+.stock-code { color: var(--text-dim); font-size: 11px; }
+.price { font-weight: 600; font-size: 14px; }
+.change-up { color: var(--green); }
+.change-down { color: var(--red); }
+/* Signal dots */
+.signal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+}
+.signal-pass { background: rgba(34,197,94,0.15); color: var(--green); }
+.signal-fail { background: rgba(239,68,68,0.15); color: var(--red); }
+.signal-neutral { background: rgba(120,123,134,0.15); color: var(--text-dim); }
+/* Overall badge */
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.badge-buy { background: rgba(34,197,94,0.2); color: var(--green); }
+.badge-sell { background: rgba(239,68,68,0.2); color: var(--red); }
+.badge-wait { background: rgba(234,179,8,0.2); color: var(--yellow); }
+/* Action buttons */
+.action-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s;
+}
+.action-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.action-btn.danger:hover { color: var(--red); border-color: var(--red); }
+/* AI Panel */
+.ai-panel {
+  margin-top: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.ai-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+.ai-header h3 { font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.ai-header .arrow { transition: transform 0.3s; font-size: 10px; }
+.ai-panel.collapsed .ai-body { display: none; }
+.ai-panel.collapsed .arrow { transform: rotate(-90deg); }
+.ai-body { padding: 16px; }
+.ai-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.ai-tab {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  transition: all 0.2s;
+}
+.ai-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ai-section { display: none; }
+.ai-section.active { display: block; }
+.ai-chat-messages {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+.ai-msg {
+  margin-bottom: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 85%;
+}
+.ai-msg.user { background: var(--accent); color: #fff; margin-left: auto; }
+.ai-msg.assistant { background: #252836; color: var(--text); }
+.ai-input-row { display: flex; gap: 8px; }
+.ai-input {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+.ai-input:focus { border-color: var(--accent); }
+.ai-send {
+  padding: 10px 20px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: opacity 0.2s;
+}
+.ai-send:hover { opacity: 0.9; }
+.ai-send:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-key-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.ai-key-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+/* Copy box */
+.copy-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--text-dim);
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  margin-bottom: 8px;
+}
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+}
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* Responsive */
+@media (max-width: 768px) {
+  .header h1 { font-size: 15px; }
+  .container { padding: 8px; }
+  table { font-size: 11px; }
+  thead th, tbody td { padding: 6px 8px; }
+}
+/* Loading skeleton */
+.skeleton { background: linear-gradient(90deg, var(--border) 25%, #333 50%, var(--border) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+/* Tooltip */
+.has-tooltip { position: relative; cursor: help; border-bottom: 1px dotted var(--text-dim); }
+.has-tooltip:hover .tooltip { display: block; }
+.tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 300;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <h1>📊 量价信号</h1>
+  <div class="header-right">
+    <span style="font-size:11px">每 <select class="refresh-select" id="refreshInterval" onchange="changeInterval()">
+      <option value="1">1秒</option>
+      <option value="2" selected>2秒</option>
+      <option value="5">5秒</option>
+      <option value="10">10秒</option>
+    </select> 刷新</span>
+    <div class="refresh-dot" id="refreshDot"></div>
+    <span id="lastUpdate">--</span>
+    <span id="apiStatus" style="color:var(--green)">●</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Search -->
+  <div class="search-wrap">
+    <input type="text" class="search-input" id="searchInput"
+      placeholder="搜索股票 — 输入代码或名称拼音首字母，如 002456 / og / OFG / 欧菲光"
+      oninput="handleSearch(this.value)" onfocus="handleSearch(this.value)">
+    <div class="search-dropdown" id="searchDropdown"></div>
+  </div>
+
+  <!-- Watchlist -->
+  <div class="watchlist-header">
+    <h2>自选股</h2>
+    <span class="watchlist-count" id="watchlistCount">0只</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>股票</th>
+          <th>现价</th>
+          <th>涨幅</th>
+          <th>MA20 趋势</th>
+          <th>MACD</th>
+          <th>布林位置</th>
+          <th>量能</th>
+          <th>综合信号</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="watchlistBody">
+        <tr>
+          <td colspan="9">
+            <div class="empty-state">
+              <div class="icon">🔍</div>
+              <p>在上方搜索框搜索股票并添加</p>
+              <p style="font-size:12px;margin-top:4px">默认已加入 欧菲光、盈新发展</p>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- AI Panel -->
+  <div class="ai-panel" id="aiPanel">
+    <div class="ai-header" onclick="toggleAi()">
+      <h3>🤖 AI 助手 <span style="font-size:11px;color:var(--text-dim);font-weight:400">结合实时数据对话</span></h3>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="ai-body">
+      <div class="ai-tabs">
+        <button class="ai-tab active" onclick="switchAiTab('copy')">📋 复制问 Claude</button>
+        <button class="ai-tab" onclick="switchAiTab('chat')">💬 内置 API 对话</button>
+      </div>
+
+      <!-- Tab 1: Copy to Claude -->
+      <div class="ai-section active" id="aiSectionCopy">
+        <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px">
+          点击下方按钮复制当前所有自选股的数据和指标，然后粘贴到 Claude Code / ChatGPT 提问。
+        </p>
+        <div class="copy-box" id="copyBox">点击"生成上下文"按钮...</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="ai-send" onclick="generateContext()" style="background:#374151">🔄 生成上下文</button>
+          <button class="ai-send" onclick="copyContext()">📋 复制到剪贴板</button>
+        </div>
+        <p id="copyMsg" style="font-size:11px;color:var(--green);margin-top:4px;display:none">已复制!</p>
+      </div>
+
+      <!-- Tab 2: API Chat -->
+      <div class="ai-section" id="aiSectionChat">
+        <p class="ai-key-label">API Key（选填，不填则使用复制模式）</p>
+        <input type="password" class="ai-key-input" id="apiKeyInput"
+          placeholder="输入 Anthropic / OpenAI API Key，自动保存">
+        <p class="ai-key-label" style="margin-top:8px">API 地址（支持 OpenAI 兼容接口）</p>
+        <input type="text" class="ai-key-input" id="apiUrlInput"
+          placeholder="https://api.anthropic.com/v1/messages" value="https://api.anthropic.com/v1/messages">
+        <p style="font-size:11px;color:var(--text-dim);margin-bottom:8px">
+          支持 Claude API / OpenAI API / 通义千问等任意 OpenAI 兼容接口
+        </p>
+        <div class="ai-chat-messages" id="chatMessages">
+          <div class="ai-msg assistant">👋 你好！我已加载你的自选股数据。可以直接问我：某只股票的信号怎么样？该不该买？这只票现在什么位置？</div>
+        </div>
+        <div class="ai-input-row">
+          <input type="text" class="ai-input" id="chatInput" placeholder="输入问题，如：欧菲光现在能不能买？"
+            onkeydown="if(event.key==='Enter')sendChat()">
+          <button class="ai-send" onclick="sendChat()">发送</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ==================== STATE ====================
+const DEFAULT_WATCHLIST = [
+  { code: '002456', market: 0 }, // 欧菲光 深市
+  { code: '000620', market: 0 }, // 盈新发展 深市
+];
+let watchlist = loadWatchlist();
+let stockData = {};      // code -> realtime data
+let klineData = {};      // code -> kline array
+let indicators = {};     // code -> computed indicators
+let refreshTimer = null;
+let refreshMs = 2000;
+let searchCache = [];
+let prevPrices = {}; // track previous prices for flash animation
+
+// ==================== PERSISTENCE ====================
+function loadWatchlist() {
+  try {
+    const saved = localStorage.getItem('stock_watchlist_v2');
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return [...DEFAULT_WATCHLIST];
+}
+function saveWatchlist() {
+  localStorage.setItem('stock_watchlist_v2', JSON.stringify(watchlist));
+}
+function loadApiKey() {
+  try {
+    return localStorage.getItem('stock_apikey') || '';
+  } catch(e) { return ''; }
+}
+function saveApiKey(key) {
+  localStorage.setItem('stock_apikey', key);
+}
+function loadApiUrl() {
+  try {
+    return localStorage.getItem('stock_apiurl') || 'https://api.anthropic.com/v1/messages';
+  } catch(e) { return 'https://api.anthropic.com/v1/messages'; }
+}
+function saveApiUrl(url) {
+  localStorage.setItem('stock_apiurl', url);
+}
+
+// ==================== API ====================
+function marketCode(code, mkt) {
+  return mkt === 1 ? `1.${code}` : `0.${code}`;
+}
+
+async function fetchRealtime(codes) {
+  if (codes.length === 0) return {};
+  const secids = codes.map(c => `${c.market}.${c.code}`).join(',');
+  const url = `https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&fields=f2,f3,f4,f5,f6,f7,f8,f12,f14,f15,f16,f17,f18,f20,f21&secids=${secids}&_=${Date.now()}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    const result = {};
+    if (data && data.data && data.data.diff) {
+      for (const d of data.data.diff) {
+        const code = d.f12;
+        result[code] = {
+          code: code,
+          name: d.f14,
+          price: d.f2,
+          changePct: d.f3,
+          changeAmt: d.f4,
+          high: d.f15,
+          low: d.f16,
+          open: d.f17,
+          volume: d.f5,    // 手
+          amount: d.f6,    // 元
+          turnover: d.f8,  // 换手率
+          marketCap: d.f20, // 总市值
+          time: new Date()
+        };
+      }
+    }
+    return result;
+  } catch (e) {
+    console.error('fetch realtime error:', e);
+    return {};
+  }
+}
+
+async function fetchKline(code, market, num = 60) {
+  const secid = marketCode(code, market);
+  const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=0&end=20500101&lmt=${num}&_=${Date.now()}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.data && data.data.klines) {
+      return data.data.klines.map(line => {
+        const parts = line.split(',');
+        return {
+          date: parts[0],
+          open: parseFloat(parts[1]),
+          close: parseFloat(parts[2]),
+          high: parseFloat(parts[3]),
+          low: parseFloat(parts[4]),
+          volume: parseFloat(parts[5]),
+          amount: parseFloat(parts[6]),
+        };
+      });
+    }
+    return [];
+  } catch (e) {
+    console.error('fetch kline error:', e);
+    return [];
+  }
+}
+
+async function searchStocks(keyword) {
+  if (!keyword || keyword.trim().length === 0) { searchCache = []; return []; }
+  const url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(keyword)}&type=14&token=D43BF722C8E33BDC906FB84D85E326E8&_=${Date.now()}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.QuotationCodeTable && data.QuotationCodeTable.Data) {
+      const results = data.QuotationCodeTable.Data
+        .filter(d => d.SecurityTypeName === 'A股' || d.Exchange === 'SZ' || d.Exchange === 'SH')
+        .map(d => ({
+          code: d.Code,
+          market: d.MktNum === '沪市' || d.Exchange === 'SH' ? 1 : 0,
+          name: d.Name,
+          pinyin: d.PinYin || '',
+        }));
+      searchCache = results;
+      return results;
+    }
+  } catch(e) { console.error('search error:', e); }
+  return [];
+}
+
+// ==================== INDICATORS ====================
+function ema(data, period) {
+  if (data.length < period) return Array(data.length).fill(null);
+  const k = 2 / (period + 1);
+  const result = [];
+  // SMA for first value
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += data[i];
+  result.push(sum / period);
+  for (let i = period; i < data.length; i++) {
+    result.push(data[i] * k + result[result.length - 1] * (1 - k));
+  }
+  // pad front with nulls
+  const pad = new Array(period - 1).fill(null);
+  return pad.concat(result);
+}
+
+function sma(data, period) {
+  const result = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) { result.push(null); continue; }
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += data[j];
+    result.push(sum / period);
+  }
+  return result;
+}
+
+function stddev(data, period, ma) {
+  const result = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1 || ma[i] === null) { result.push(null); continue; }
+    let sumSq = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      sumSq += Math.pow(data[j] - ma[i], 2);
+    }
+    result.push(Math.sqrt(sumSq / period));
+  }
+  return result;
+}
+
+function computeIndicators(klines) {
+  if (!klines || klines.length < 26) return null;
+  const closes = klines.map(k => k.close);
+  const highs = klines.map(k => k.high);
+  const lows = klines.map(k => k.low);
+  const volumes = klines.map(k => k.volume);
+
+  // MA20
+  const ma20 = sma(closes, 20);
+  const lastMa20 = ma20[ma20.length - 1];
+  const prevMa20 = ma20[ma20.length - 2];
+  const ma20Dir = lastMa20 !== null && prevMa20 !== null
+    ? (lastMa20 > prevMa20 * 1.001 ? 'up' : lastMa20 < prevMa20 * 0.999 ? 'down' : 'flat')
+    : 'unknown';
+
+  // MACD
+  const ema12 = ema(closes, 12);
+  const ema26 = ema(closes, 26);
+  const dif = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (ema12[i] === null || ema26[i] === null) { dif.push(null); continue; }
+    dif.push(ema12[i] - ema26[i]);
+  }
+  const dea = ema(dif.filter(d => d !== null), 9);
+  // pad dea
+  const deaFull = new Array(closes.length).fill(null);
+  let deaI = 0;
+  for (let i = 0; i < closes.length; i++) {
+    if (dif[i] === null) continue;
+    if (deaI < dea.length) deaFull[i] = dea[deaI++];
+  }
+  const macdBar = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (dif[i] === null || deaFull[i] === null) { macdBar.push(null); continue; }
+    macdBar.push(2 * (dif[i] - deaFull[i]));
+  }
+
+  const lastDif = dif[dif.length - 1];
+  const lastDea = deaFull[deaFull.length - 1];
+  const lastBar = macdBar[macdBar.length - 1];
+  const prevBar = macdBar[macdBar.length - 2];
+  const prevBar2 = macdBar[macdBar.length - 3];
+  const macdGolden = lastDif !== null && lastDea !== null && lastDif > lastDea;
+  const barShrinking = prevBar !== null && lastBar !== null && prevBar2 !== null
+    && lastBar < prevBar && prevBar < prevBar2;
+
+  // BOLL (20, 2)
+  const bollMid = ma20;
+  const bollStd = stddev(closes, 20, ma20);
+  const bollUpper = [];
+  const bollLower = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (bollMid[i] === null || bollStd[i] === null) {
+      bollUpper.push(null); bollLower.push(null); continue;
+    }
+    bollUpper.push(bollMid[i] + 2 * bollStd[i]);
+    bollLower.push(bollMid[i] - 2 * bollStd[i]);
+  }
+
+  const lastClose = closes[closes.length - 1];
+  const lastMid = bollMid[bollMid.length - 1];
+  const lastUpper = bollUpper[bollUpper.length - 1];
+  const lastLower = bollLower[bollLower.length - 1];
+  const bollWidth = lastUpper !== null && lastLower !== null ? (lastUpper - lastLower) / lastMid : 0;
+
+  // Volume MA5
+  const volMa5 = sma(volumes, 5);
+  const lastVol = volumes[volumes.length - 1];
+  const lastVolMa5 = volMa5[volMa5.length - 1];
+
+  // Price position relative to last close
+  const aboveMa20 = lastClose > lastMa20;
+  const ma20Up = ma20Dir === 'up' || ma20Dir === 'flat';
+  const inBollRange = lastClose > lastMid && lastClose < lastUpper * 0.98;
+  const notTouchingUpper = lastClose < lastUpper * 0.97;
+  const volumeOk = lastVol > lastVolMa5;
+  const volumeSpike = lastVol > lastVolMa5 * 2;
+
+  // Buy conditions (all 4)
+  const c1 = aboveMa20 && ma20Up;
+  const c2 = macdGolden && !barShrinking;
+  const c3 = lastClose > lastMid && notTouchingUpper;
+  const c4 = volumeOk;
+  const allBuy = c1 && c2 && c3 && c4;
+
+  // Sell conditions (any 1)
+  const s1 = !aboveMa20;
+  const s2 = !macdGolden; // DIF <= DEA
+  const s3 = lastClose >= lastUpper * 0.97 && volumeSpike;
+  const s4 = false; // loss tracking needs entry price, not here
+
+  const anySell = s1 || s2 || s3;
+
+  return {
+    lastClose, ma20: lastMa20, ma20Dir, aboveMa20,
+    dif: lastDif, dea: lastDea, macdBar: lastBar, macdGolden, barShrinking,
+    bollMid: lastMid, bollUpper: lastUpper, bollLower: lastLower, bollWidth,
+    lastVol, volMa5: lastVolMa5,
+    c1, c2, c3, c4, allBuy,
+    s1, s2, s3, anySell,
+  };
+}
+
+// ==================== MAIN LOOP ====================
+let klineLastFetch = 0;
+
+async function refreshKlines(force = false) {
+  const now = Date.now();
+  if (!force && now - klineLastFetch < 60000) return; // 60s cache
+  klineLastFetch = now;
+  try {
+    const results = await Promise.all(watchlist.map(w =>
+      fetchKline(w.code, w.market, 60).catch(() => [])
+    ));
+    watchlist.forEach((w, i) => {
+      klineData[w.code] = results[i] || [];
+      indicators[w.code] = computeIndicators(klineData[w.code]);
+    });
+  } catch(e) { console.error('kline batch error:', e); }
+}
+
+async function refreshAll(forceKlines = false) {
+  if (watchlist.length === 0) {
+    renderWatchlist();
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+    return;
+  }
+
+  // Always fetch realtime data (lightweight)
+  const rtData = await fetchRealtime(watchlist).catch(() => ({}));
+  stockData = rtData;
+
+  // K-lines: fetch on init, force, or if any stock missing
+  const missingKlines = watchlist.some(w => !klineData[w.code] || klineData[w.code].length === 0);
+  if (forceKlines || missingKlines) {
+    await refreshKlines(true);
+  } else {
+    // Compute indicators from cached klines
+    watchlist.forEach(w => {
+      if (klineData[w.code] && klineData[w.code].length > 0) {
+        indicators[w.code] = computeIndicators(klineData[w.code]);
+      }
+    });
+    // Background refresh if cache is stale (don't await)
+    refreshKlines(false);
+  }
+
+  renderWatchlist();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+  document.getElementById('apiStatus').style.color = 'var(--green)';
+}
+
+function renderWatchlist() {
+  const tbody = document.getElementById('watchlistBody');
+  document.getElementById('watchlistCount').textContent = watchlist.length + '只';
+
+  if (watchlist.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9">
+      <div class="empty-state"><div class="icon">📭</div><p>自选列表为空</p></div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = watchlist.map(w => {
+    const d = stockData[w.code] || {};
+    const ind = indicators[w.code];
+    const name = d.name || w.code;
+    const price = d.price != null ? d.price.toFixed(2) : '--';
+    const changePct = d.changePct != null ? d.changePct : 0;
+    const changeCls = changePct >= 0 ? 'change-up' : 'change-down';
+    const changeSign = changePct >= 0 ? '+' : '';
+
+    // Flash animation on price change
+    const prevP = prevPrices[w.code];
+    let flashClass = '';
+    if (prevP != null && d.price != null) {
+      if (d.price > prevP) flashClass = 'flash-up';
+      else if (d.price < prevP) flashClass = 'flash-down';
+    }
+    if (d.price != null) prevPrices[w.code] = d.price;
+
+    if (!ind) {
+      return `<tr>
+        <td><span class="stock-name">${name}</span><br><span class="stock-code">${w.code}</span></td>
+        <td class="price">${price}</td>
+        <td class="${changeCls}">${changeSign}${changePct.toFixed(2)}%</td>
+        <td colspan="5" style="color:var(--text-dim)">加载中...</td>
+        <td><button class="action-btn danger" onclick="removeStock('${w.code}')">删除</button></td>
+      </tr>`;
+    }
+
+    const signalCell = (pass, label) => {
+      const cls = pass ? 'signal-pass' : (pass === false ? 'signal-fail' : 'signal-neutral');
+      const icon = pass ? '✓' : (pass === false ? '✗' : '−');
+      return `<span class="signal ${cls}">${icon}</span>`;
+    };
+
+    let overallBadge;
+    if (ind.allBuy) {
+      overallBadge = '<span class="badge badge-buy">买入信号</span>';
+    } else if (ind.anySell) {
+      overallBadge = '<span class="badge badge-sell">卖出信号</span>';
+    } else {
+      overallBadge = '<span class="badge badge-wait">观望</span>';
+    }
+
+    return `<tr class="${flashClass}">
+      <td>
+        <span class="stock-name">${name}</span><br>
+        <span class="stock-code">${w.code}</span>
+      </td>
+      <td class="price">${price}</td>
+      <td class="${changeCls}">${changeSign}${changePct.toFixed(2)}%</td>
+      <td>${signalCell(ind.c1, 'MA20趋势')} <span style="font-size:11px;color:var(--text-dim)">${ind.ma20Dir==='up'?'↑':ind.ma20Dir==='down'?'↓':'→'} ${ind.ma20?.toFixed(2)||'--'}</span></td>
+      <td>${signalCell(ind.c2, 'MACD')} <span style="font-size:11px;color:var(--text-dim)">${ind.macdGolden?'金叉':'死叉'}</span></td>
+      <td>${signalCell(ind.c3, '布林')} <span style="font-size:11px;color:var(--text-dim)">${ind.lastClose>ind.bollMid?'中上':'中下'}</span></td>
+      <td>${signalCell(ind.c4, '量能')} <span style="font-size:11px;color:var(--text-dim)">${(ind.lastVol/10000).toFixed(0)}万手</span></td>
+      <td>${overallBadge}</td>
+      <td><button class="action-btn danger" onclick="removeStock('${w.code}')">删除</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ==================== SEARCH ====================
+let searchTimeout = null;
+async function handleSearch(val) {
+  clearTimeout(searchTimeout);
+  if (!val || val.trim().length === 0) {
+    document.getElementById('searchDropdown').classList.remove('active');
+    return;
+  }
+  searchTimeout = setTimeout(async () => {
+    const results = await searchStocks(val.trim());
+    renderSearchDropdown(results);
+  }, 200);
+}
+
+function renderSearchDropdown(results) {
+  const dd = document.getElementById('searchDropdown');
+  if (results.length === 0) {
+    dd.innerHTML = '<div style="padding:12px;color:var(--text-dim);font-size:12px">无匹配结果</div>';
+  } else {
+    dd.innerHTML = results.slice(0, 15).map(r => `
+      <div class="search-item" onclick="addStock('${r.code}',${r.market},'${r.name}')">
+        <span>
+          <span class="name">${r.name}</span>
+          <span class="code" style="margin-left:8px">${r.code}</span>
+        </span>
+        <span style="font-size:11px;color:var(--text-dim)">点击添加 →</span>
+      </div>
+    `).join('');
+  }
+  dd.classList.add('active');
+}
+
+// Close search on click outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-wrap')) {
+    document.getElementById('searchDropdown').classList.remove('active');
+  }
+});
+
+function addStock(code, market, name) {
+  if (watchlist.find(w => w.code === code)) {
+    // Already in list, flash
+    document.getElementById('searchDropdown').classList.remove('active');
+    document.getElementById('searchInput').value = '';
+    return;
+  }
+  watchlist.push({ code, market, name });
+  saveWatchlist();
+  document.getElementById('searchDropdown').classList.remove('active');
+  document.getElementById('searchInput').value = '';
+  refreshAll();
+}
+
+function removeStock(code) {
+  watchlist = watchlist.filter(w => w.code !== code);
+  saveWatchlist();
+  refreshAll();
+}
+
+// ==================== AI ====================
+function toggleAi() {
+  document.getElementById('aiPanel').classList.toggle('collapsed');
+}
+
+function switchAiTab(tab) {
+  document.querySelectorAll('.ai-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.ai-section').forEach(s => s.classList.remove('active'));
+  if (tab === 'copy') {
+    document.querySelectorAll('.ai-tab')[0].classList.add('active');
+    document.getElementById('aiSectionCopy').classList.add('active');
+  } else {
+    document.querySelectorAll('.ai-tab')[1].classList.add('active');
+    document.getElementById('aiSectionChat').classList.add('active');
+  }
+}
+
+function generateContext() {
+  let ctx = `当前时间: ${new Date().toLocaleString()}\n\n`;
+  ctx += `=== 自选股实时数据 ===\n\n`;
+  watchlist.forEach(w => {
+    const d = stockData[w.code] || {};
+    const ind = indicators[w.code];
+    ctx += `【${d.name || w.code} ${w.code}】\n`;
+    ctx += `  现价: ${d.price != null ? d.price.toFixed(2) : '--'}  涨幅: ${d.changePct != null ? (d.changePct>=0?'+':'')+d.changePct.toFixed(2)+'%' : '--'}\n`;
+    if (ind) {
+      ctx += `  MA20: ${ind.ma20?.toFixed(2)}  方向: ${ind.ma20Dir}  ${ind.aboveMa20 ? '站上✓' : '跌破✗'}\n`;
+      ctx += `  MACD: ${ind.macdGolden ? '金叉✓' : '死叉✗'}  DIF=${ind.dif?.toFixed(3)}  DEA=${ind.dea?.toFixed(3)}\n`;
+      ctx += `  布林: 中轨${ind.bollMid?.toFixed(2)} 上轨${ind.bollUpper?.toFixed(2)} 下轨${ind.bollLower?.toFixed(2)}\n`;
+      ctx += `  成交量: ${(ind.lastVol/10000).toFixed(0)}万手  5日均量: ${(ind.volMa5/10000).toFixed(0)}万手  ${ind.c4 ? '放量✓' : '缩量✗'}\n`;
+      ctx += `  买入条件: MA趋势${ind.c1?'✓':'✗'} MACD${ind.c2?'✓':'✗'} 布林${ind.c3?'✓':'✗'} 量能${ind.c4?'✓':'✗'}\n`;
+      ctx += `  综合: ${ind.allBuy ? '★买入信号★' : ind.anySell ? '▲卖出信号▲' : '观望'}\n`;
+    }
+    ctx += `\n`;
+  });
+
+  ctx += `---\n请基于以上数据，分析我的自选股现状。我想知道：\n`;
+  ctx += `1. 哪些股票现在信号最好？\n`;
+  ctx += `2. 哪些有风险需要注意？\n`;
+  ctx += `3. 给出具体的操作建议。`;
+  document.getElementById('copyBox').textContent = ctx;
+  document.getElementById('copyMsg').style.display = 'none';
+}
+
+function copyContext() {
+  const text = document.getElementById('copyBox').textContent;
+  if (text.includes('点击') && text.includes('按钮')) {
+    generateContext();
+  }
+  navigator.clipboard.writeText(document.getElementById('copyBox').textContent).then(() => {
+    const msg = document.getElementById('copyMsg');
+    msg.style.display = 'block';
+    setTimeout(() => msg.style.display = 'none', 2000);
+  });
+}
+
+// Chat with API
+let chatHistory = [];
+
+async function sendChat() {
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+  const apiUrl = document.getElementById('apiUrlInput').value.trim();
+  const input = document.getElementById('chatInput');
+  const question = input.value.trim();
+  if (!question) return;
+
+  // Save key & url
+  if (apiKey) { saveApiKey(apiKey); saveApiUrl(apiUrl); }
+
+  // Add user message
+  const msgsDiv = document.getElementById('chatMessages');
+  msgsDiv.innerHTML += `<div class="ai-msg user">${escapeHtml(question)}</div>`;
+  input.value = '';
+  msgsDiv.scrollTop = msgsDiv.scrollHeight;
+
+  if (!apiKey) {
+    msgsDiv.innerHTML += `<div class="ai-msg assistant">⚠️ 请先填入 API Key。或者切换到"复制问 Claude"模式。</div>`;
+    msgsDiv.scrollTop = msgsDiv.scrollHeight;
+    return;
+  }
+
+  // Build context
+  let ctxText = `你是股票技术分析助手。以下是用户当前自选股的实时数据，请基于这些数据回答用户问题：\n\n`;
+  watchlist.forEach(w => {
+    const d = stockData[w.code] || {};
+    const ind = indicators[w.code];
+    ctxText += `${d.name||w.code}(${w.code}): 现价${d.price?.toFixed(2)||'--'} 涨幅${d.changePct?.toFixed(2)||'--'}%`;
+    if (ind) {
+      ctxText += ` MA20=${ind.ma20?.toFixed(2)} MACD_${ind.macdGolden?'金叉':'死叉'} 布林位置=${ind.lastClose>ind.bollMid?'中轨上方':'中轨下方'} 量能=${ind.c4?'放量':'缩量'} 综合=${ind.allBuy?'买入信号':ind.anySell?'卖出信号':'观望'}`;
+    }
+    ctxText += `\n`;
+  });
+
+  const systemPrompt = ctxText + `\n\n请用简洁中文回答，结合技术指标给出分析。`;
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: question }
+  ];
+
+  // Show thinking
+  const thinkingId = 'thinking_' + Date.now();
+  msgsDiv.innerHTML += `<div class="ai-msg assistant" id="${thinkingId}">思考中...</div>`;
+  msgsDiv.scrollTop = msgsDiv.scrollHeight;
+
+  try {
+    // Detect if Anthropic or OpenAI format
+    const isAnthropic = apiUrl.includes('anthropic.com');
+
+    let body, headers;
+    if (isAnthropic) {
+      body = JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: question }]
+      });
+      headers = {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      };
+    } else {
+      body = JSON.stringify({
+        model: 'gpt-4o',
+        messages: messages,
+        max_tokens: 1024,
+        stream: false
+      });
+      headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      };
+    }
+
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: headers,
+      body: body
+    });
+
+    const data = await res.json();
+    let reply;
+    if (isAnthropic) {
+      reply = data.content?.[0]?.text || JSON.stringify(data);
+    } else {
+      reply = data.choices?.[0]?.message?.content || JSON.stringify(data);
+    }
+
+    document.getElementById(thinkingId).textContent = reply;
+  } catch (e) {
+    document.getElementById(thinkingId).textContent = '❌ 请求失败: ' + e.message + '。请检查 API Key 和地址是否正确。';
+  }
+  msgsDiv.scrollTop = msgsDiv.scrollHeight;
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+// ==================== INIT ====================
+function changeInterval() {
+  const v = parseInt(document.getElementById('refreshInterval').value);
+  refreshMs = v * 1000;
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(refreshAll, refreshMs);
+}
+
+function init() {
+  // Load api key
+  document.getElementById('apiKeyInput').value = loadApiKey();
+  document.getElementById('apiUrlInput').value = loadApiUrl();
+
+  // Start refresh (force kline fetch on init)
+  refreshTimer = setInterval(refreshAll, refreshMs);
+  refreshAll(true);
+
+  // Generate initial context
+  setTimeout(generateContext, 3000);
+}
+
+init();
+</script>
+</body>
+</html>
