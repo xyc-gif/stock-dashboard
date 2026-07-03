@@ -363,7 +363,7 @@ tbody tr.flash-down { animation: flashRed 0.8s ease-out; }
   <!-- Search -->
   <div class="search-wrap">
     <input type="text" class="search-input" id="searchInput"
-      placeholder="搜索股票 — 输入代码或名称拼音首字母，如 002456 / og / OFG / 欧菲光"
+      placeholder="搜索全市场 4095 只 A 股 — 输入代码/拼音/名称，如 002456 / 平安 / payh"
       oninput="handleSearch(this.value)" onfocus="handleSearch(this.value)">
     <div class="search-dropdown" id="searchDropdown"></div>
   </div>
@@ -465,7 +465,8 @@ let klineData = {};      // code -> kline array
 let indicators = {};     // code -> computed indicators
 let refreshTimer = null;
 let refreshMs = 2000;
-let searchCache = [];
+let stockList = [];     // full stock list loaded from JSON
+let stockListLoaded = false;
 let prevPrices = {}; // track previous prices for flash animation
 
 // ==================== PERSISTENCE ====================
@@ -563,26 +564,36 @@ async function fetchKline(code, market, num = 60) {
   }
 }
 
-async function searchStocks(keyword) {
-  if (!keyword || keyword.trim().length === 0) { searchCache = []; return []; }
-  const url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(keyword)}&type=14&token=D43BF722C8E33BDC906FB84D85E326E8&_=${Date.now()}`;
+async function loadStockList() {
+  if (stockListLoaded) return;
   try {
-    const res = await fetch(url);
+    const res = await fetch('stocks.json');
     const data = await res.json();
-    if (data && data.QuotationCodeTable && data.QuotationCodeTable.Data) {
-      const results = data.QuotationCodeTable.Data
-        .filter(d => d.SecurityTypeName === 'A股' || d.Exchange === 'SZ' || d.Exchange === 'SH')
-        .map(d => ({
-          code: d.Code,
-          market: d.MktNum === '沪市' || d.Exchange === 'SH' ? 1 : 0,
-          name: d.Name,
-          pinyin: d.PinYin || '',
-        }));
-      searchCache = results;
-      return results;
+    stockList = data;
+    stockListLoaded = true;
+    console.log(`Loaded ${stockList.length} stocks`);
+  } catch(e) {
+    console.error('Failed to load stock list:', e);
+  }
+}
+
+function searchStocksLocal(keyword) {
+  if (!keyword || keyword.trim().length === 0) return [];
+  const kw = keyword.trim().toLowerCase();
+  const results = [];
+  for (const s of stockList) {
+    if (s.c.includes(kw) || s.n.toLowerCase().includes(kw) || (s.c + s.n).includes(kw)) {
+      results.push({ code: s.c, market: s.m, name: s.n });
+      if (results.length >= 20) break;
     }
-  } catch(e) { console.error('search error:', e); }
-  return [];
+  }
+  return results;
+}
+
+// Keep old function signature for compatibility, redirect to local
+async function searchStocks(keyword) {
+  if (!stockListLoaded) await loadStockList();
+  return searchStocksLocal(keyword);
 }
 
 // ==================== INDICATORS ====================
@@ -1082,6 +1093,9 @@ function init() {
   // Load api key
   document.getElementById('apiKeyInput').value = loadApiKey();
   document.getElementById('apiUrlInput').value = loadApiUrl();
+
+  // Preload stock list for search
+  loadStockList();
 
   // Start refresh (force kline fetch on init)
   refreshTimer = setInterval(refreshAll, refreshMs);
